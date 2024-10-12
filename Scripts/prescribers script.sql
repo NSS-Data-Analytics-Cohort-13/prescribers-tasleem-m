@@ -5,6 +5,8 @@ INNER JOIN prescriber AS pscrbe
 USING (npi)
 GROUP BY npi, pscrbe.nppes_provider_last_org_name, pscrbe.nppes_provider_first_name, pscrbe.specialty_description
 ORDER BY total_claims DESC
+LIMIT 1
+--answer: Pendley, Bruce
 
 --q2 a. Which specialty had the most total number of claims (totaled over all drugs)?
 SELECT pscrbe.specialty_description, SUM (pscrpt.total_claim_count) AS total_claims
@@ -13,6 +15,7 @@ INNER JOIN prescriber AS pscrbe
 USING (npi)
 GROUP BY pscrbe.specialty_description
 ORDER BY total_claims DESC
+LIMIT 1
 --answer: Family Practice
 
 --b. Which specialty had the most total number of claims for opioids?
@@ -25,6 +28,7 @@ USING (drug_name)
 WHERE d.opioid_drug_flag = 'Y'
 GROUP BY pscrbe.specialty_description
 ORDER BY total_claims DESC
+LIMIT 1
 --answer: Nurse Practitioner
 
 --c. Are there any specialties that appear in the prescriber table that have no associated prescriptions in the prescription table?
@@ -50,20 +54,22 @@ GROUP BY pscrbe.specialty_description
 ORDER BY total DESC
 
 --q3 a. Which drug (generic_name) had the highest total drug cost?
-SELECT drug_name, d.generic_name, pscrpt.total_drug_cost
+SELECT d.generic_name, SUM (pscrpt.total_drug_cost)::MONEY AS total_cost
 FROM prescription AS pscrpt
 INNER JOIN drug AS d
 USING (drug_name)
-ORDER BY pscrpt.total_drug_cost DESC
---answer: PIRFENIDONE
+GROUP BY d.generic_name
+ORDER BY total_cost DESC
+--answer: INSULIN
 
 --b. Which drug (generic_name) has the hightest total cost per day? 
-SELECT drug_name, d.generic_name, ROUND(pscrpt.total_drug_cost/pscrpt.total_day_supply, 2) AS total_cost_per_day
+SELECT d.generic_name, ROUND(SUM (pscrpt.total_drug_cost)/ SUM (pscrpt.total_day_supply), 2) AS total_cost_per_day
 FROM prescription AS pscrpt
 INNER JOIN drug AS d
 USING (drug_name)
+GROUP BY d.generic_name
 ORDER BY total_cost_per_day DESC
---answer:IMMUN GLOB G(IGG)/GLY/IGA OV50
+--answer:C1 ESTERASE INHIBITOR
 
 --q4 a. For each drug in the drug table, return the drug name and then a column named 'drug_type' which says 'opioid' for drugs which have opioid_drug_flag = 'Y', says 'antibiotic' for those drugs which have antibiotic_drug_flag = 'Y', and says 'neither' for all other drugs. 
 SELECT drug_name,
@@ -83,9 +89,15 @@ USING (drug_name)
 --answer: opioids
 
 --q5 a. How many CBSAs are in Tennessee?
-SELECT COUNT (cbsa) AS cnt_TN_cbsa
-FROM cbsa
-WHERE cbsaname LIKE '%TN%'
+--SELECT COUNT (cbsa) AS cnt_TN_cbsa
+--FROM cbsa
+--WHERE cbsaname LIKE '%TN%'
+
+SELECT COUNT (*)
+FROM cbsa AS c
+INNER JOIN fips_county AS f
+USING (fipscounty)
+WHERE f.state = 'TN'
 
 --b. Which cbsa has the largest combined population? Which has the smallest? Report the CBSA name and total population.
 SELECT c.cbsaname, SUM (pop.population) AS total_pop
@@ -94,6 +106,26 @@ INNER JOIN population AS pop
 USING (fipscounty)
 GROUP BY c.cbsaname
 ORDER BY total_pop DESC
+
+-- (
+-- SELECT cbsaname, SUM(population) AS total_population, 'largest' as flag
+-- FROM cbsa 
+-- INNER JOIN population
+-- USING(fipscounty)
+-- GROUP BY cbsaname
+-- ORDER BY total_population DESC
+-- limit 1
+-- )
+-- UNION
+-- (
+-- SELECT cbsaname, SUM(population) AS total_population, 'smallest' as flag
+-- FROM cbsa 
+-- INNER JOIN population
+-- USING(fipscounty)
+-- GROUP BY cbsaname
+-- ORDER BY total_population 
+-- limit 1
+-- ) order by total_population desc
 --answer: largest, Nashville-Davidson--Murfreesboro--Franklin,TN
 		--smallest, Morristown, TN
 
@@ -137,7 +169,7 @@ CROSS JOIN drug AS d
 WHERE pscrbe.specialty_description = 'Pain Management'
 	AND pscrbe.nppes_provider_city = 'NASHVILLE'
 	AND d.opioid_drug_flag = 'Y'
-
+ORDER BY npi, drug_name
 --b. Next, report the number of claims per drug per prescriber. Be sure to include all combinations, whether or not the prescriber had any claims. You should report the npi, the drug name, and the number of claims (total_claim_count).
 SELECT pscrbe.npi, d.drug_name, SUM (pscrpt.total_claim_count) AS total_claims
 FROM prescriber AS pscrbe
